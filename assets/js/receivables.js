@@ -43,7 +43,7 @@
 
   function ageBucket(dueDate, today) {
     const days = Math.round((today - dueDate) / 86400000);
-    const bucket = AGING_BUCKETS.find((b) => days >= b.min && days <= b.max);
+    const bucket = AGING_BUCKETS.find((b) => days >= b.min && days <= b.max) || AGING_BUCKETS[0];
     return { bucket, days };
   }
 
