@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accounts Receivable — Skylimit Telecalling</title>
+  <meta name="description" content="Accounts receivable aging dashboard for Skylimit Telecalling." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <nav class="top-nav">
+    <a class="nav-brand" href="index.html">
+      <span class="brand-mark">S</span>
+      Skylimit
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="quotations.html">Quotations</a>
+      <a class="nav-link active" href="receivables.html">Receivables</a>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="page-header">
+      <div>
+        <p class="eyebrow">Finance</p>
+        <h1 class="page-title">Accounts Receivable</h1>
+        <p class="page-desc">Outstanding balances, aging buckets, and collections at a glance.</p>
+      </div>
+      <div class="page-actions">
+        <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods" hidden />
+        <button class="btn btn-secondary" id="uploadBtn" title="Upload CSV or Excel file">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload file
+        </button>
+        <button class="btn btn-secondary btn-icon" id="refreshBtn" title="Refresh from Google Sheets" aria-label="Refresh from Google Sheets">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <span id="lastUpdated" class="badge badge-neutral">Not loaded</span>
+      </div>
+    </div>
+
+    <div id="statusBanner"></div>
+
+    <div id="dashboard"></div>
+  </main>
+
+  <div class="chart-tooltip"></div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/receivables.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quotations — Skylimit Telecalling</title>
+  <meta name="description" content="Quotation pipeline dashboard for Skylimit Telecalling." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <nav class="top-nav">
+    <a class="nav-brand" href="index.html">
+      <span class="brand-mark">S</span>
+      Skylimit
+    </a>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link active" href="quotations.html">Quotations</a>
+      <a class="nav-link" href="receivables.html">Receivables</a>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="page-header">
+      <div>
+        <p class="eyebrow">Sales</p>
+        <h1 class="page-title">Quotations</h1>
+        <p class="page-desc">Pipeline volume, value, and conversion across all sent quotations.</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary btn-icon" id="refreshBtn" title="Refresh data" aria-label="Refresh data">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <span id="lastUpdated" class="badge badge-neutral">Not loaded</span>
+      </div>
+    </div>
+
+    <div id="statusBanner"></div>
+
+    <div id="filters"></div>
+    <div id="dashboard"></div>
+  </main>
+
+  <div class="chart-tooltip"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/quotations.js"></script>
+</body>
+</html>
