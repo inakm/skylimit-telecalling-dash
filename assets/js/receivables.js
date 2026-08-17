@@ -14,6 +14,7 @@
   ];
 
   const SHEET = CONFIG.receivables;
+  const BUNDLED_FILE = "Outward_testDTA.xlsx";
 
   const headerMap = {
     reference: ["invoice", "inv no", "reference", "ref no", "receipt", "doc no", "invoice number", "inv no.", "bill no", "bill no."],
@@ -382,28 +383,44 @@
     $("#dashboard").appendChild(box);
   }
 
-  /* ---------- Load from Google Sheets ---------- */
+  /* ---------- Load from Google Sheets (with bundled fallback) ---------- */
 
   async function loadFromSheet() {
     const refreshBtn = $("#refreshBtn");
     refreshBtn.classList.add("loading");
     try {
-      if (!SHEET.sheetUrl) {
-        renderPlaceholder();
-        return;
-      }
       $("#statusBanner").innerHTML = "";
-      const records = await Sheets.getRows(SHEET.sheetUrl, SHEET.gid);
-      if (!records.length) throw new Error("The sheet contains no data rows.");
+
+      if (SHEET.sheetUrl) {
+        try {
+          const records = await Sheets.getRows(SHEET.sheetUrl, SHEET.gid);
+          if (records.length) {
+            const headers = Object.keys(records[0]);
+            const cols = matchHeader(headers);
+            if (cols.amount && cols.customer) {
+              const rows = buildRows(records, cols);
+              renderDashboard(rows, "Google Sheets");
+              return;
+            }
+          }
+        } catch (_) { /* sheet fetch failed, fall through to bundled file */ }
+      }
+
+      const res = await fetch(BUNDLED_FILE);
+      if (!res.ok) throw new Error("No data source available. Upload a file or configure the Google Sheet.");
+      const buf = await res.arrayBuffer();
+      const records = parseExcel(buf);
+      if (!records.length) throw new Error("Bundled file contains no data rows.");
 
       const headers = Object.keys(records[0]);
       const cols = matchHeader(headers);
       if (!cols.amount || !cols.customer) {
-        throw new Error("Could not map columns. Expected at least customer and amount columns (e.g. Client Name, Amount/Balance).");
+        throw new Error("Could not map columns from bundled file.");
       }
 
       const rows = buildRows(records, cols);
-      renderDashboard(rows, "Google Sheets");
+      const label = SHEET.sheetUrl ? "Bundled file (sheet unavailable)" : "Bundled file";
+      renderDashboard(rows, label);
     } catch (err) {
       renderError(err);
     } finally {
