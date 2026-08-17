@@ -578,6 +578,88 @@
 
     const filterBar = Dom.el("div", { class: "filter-bar" });
 
+    /* --- Date Filter --- */
+    const dateFilter = Dom.el("div", { class: "date-filter" });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let activeDateRange = null;
+
+    function startOfWeek(d) { const dt = new Date(d); const day = dt.getDay(); dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1)); dt.setHours(0, 0, 0, 0); return dt; }
+    function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+    function startOfQuarter(d) { return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); }
+    function fmtDate(d) { return d.toISOString().slice(0, 10); }
+
+    const datePresets = [
+      { key: "overdue", label: "Overdue only" },
+      { key: "this_week", label: "Due this week" },
+      { key: "this_month", label: "Due this month" },
+      { key: "next_30", label: "Due in 30 days" },
+      { key: "last_month", label: "Due last month" },
+      { key: "this_quarter", label: "Due this quarter" },
+      { key: "custom", label: "Custom range" },
+    ];
+
+    const dateChips = Dom.el("div", { class: "date-chips" });
+    let customRow = null;
+
+    datePresets.forEach((p) => {
+      const chip = Dom.el("button", { class: "filter-chip date-chip", text: p.label });
+      chip.addEventListener("click", () => {
+        dateChips.querySelectorAll(".date-chip").forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+
+        if (p.key === "custom") {
+          if (customRow) customRow.style.display = "flex";
+          activeDateRange = null;
+        } else {
+          if (customRow) customRow.style.display = "none";
+          const ranges = {
+            overdue: { from: null, to: today },
+            this_week: { from: startOfWeek(today), to: new Date(today.getTime() + 7 * 86400000) },
+            this_month: { from: startOfMonth(today), to: new Date(today.getFullYear(), today.getMonth() + 1, 0) },
+            next_30: { from: today, to: new Date(today.getTime() + 30 * 86400000) },
+            last_month: { from: new Date(today.getFullYear(), today.getMonth() - 1, 1), to: new Date(today.getFullYear(), today.getMonth(), 0) },
+            this_quarter: { from: startOfQuarter(today), to: new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3 + 3, 0) },
+          };
+          activeDateRange = ranges[p.key] || null;
+        }
+        applyFilters();
+      });
+      dateChips.appendChild(chip);
+    });
+
+    customRow = Dom.el("div", { class: "date-custom-row", style: "display:none;" });
+    const fromInput = Dom.el("input", { class: "input input-sm", type: "date" });
+    const toInput = Dom.el("input", { class: "input input-sm", type: "date" });
+    fromInput.value = fmtDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    toInput.value = fmtDate(today);
+    customRow.appendChild(Dom.el("span", { class: "date-custom-label", text: "From" }));
+    customRow.appendChild(fromInput);
+    customRow.appendChild(Dom.el("span", { class: "date-custom-label", text: "To" }));
+    customRow.appendChild(toInput);
+    const applyCustom = Dom.el("button", { class: "btn btn-sm btn-primary", text: "Apply" });
+    applyCustom.addEventListener("click", () => {
+      const from = fromInput.value ? new Date(fromInput.value + "T00:00:00") : null;
+      const to = toInput.value ? new Date(toInput.value + "T23:59:59") : null;
+      activeDateRange = { from, to };
+      applyFilters();
+    });
+    customRow.appendChild(applyCustom);
+    const clearCustom = Dom.el("button", { class: "btn btn-sm btn-secondary", text: "Clear" });
+    clearCustom.addEventListener("click", () => {
+      activeDateRange = null;
+      fromInput.value = "";
+      toInput.value = "";
+      dateChips.querySelectorAll(".date-chip").forEach((c) => c.classList.remove("active"));
+      applyFilters();
+    });
+    customRow.appendChild(clearCustom);
+
+    dateFilter.appendChild(dateChips);
+    dateFilter.appendChild(customRow);
+    filterBar.appendChild(dateFilter);
+
+    /* --- Status / Urgency Chips --- */
     const filterChips = Dom.el("div", { class: "filter-chips", id: "filterChips" });
     const activeFilters = new Set();
 
@@ -604,6 +686,7 @@
         const bills = tr.dataset.bills || "";
         const maxDays = parseInt(tr.dataset.maxDays || "0", 10);
         const isCalled = tr.dataset.called === "1";
+        const dueDates = (tr.dataset.dueDates || "").split("|").filter(Boolean);
         const q = ($("#searchInput") || {}).value || "";
         const matchSearch = !q || name.includes(q.toLowerCase()) || bills.includes(q.toLowerCase());
 
@@ -614,7 +697,19 @@
         if (activeFilters.has("called")) matchFilter = matchFilter || isCalled;
         if (activeFilters.has("not_called")) matchFilter = matchFilter || !isCalled;
 
-        const show = matchSearch && matchFilter;
+        let matchDate = true;
+        if (activeDateRange) {
+          matchDate = false;
+          for (const ds of dueDates) {
+            const d = new Date(ds + "T00:00:00");
+            if (activeDateRange.from && d < activeDateRange.from) continue;
+            if (activeDateRange.to && d > activeDateRange.to) continue;
+            matchDate = true;
+            break;
+          }
+        }
+
+        const show = matchSearch && matchFilter && matchDate;
         tr.style.display = show ? "" : "none";
         const detail = tr.nextElementSibling;
         if (detail && detail.classList.contains("customer-detail")) {
@@ -701,12 +796,15 @@
     const callSt = getCallStatus(g.customer);
     const isCalled = !!callSt;
 
+    const dueDateStrs = g.bills.filter((b) => b.dueDate).map((b) => b.dueDate.toISOString().slice(0, 10));
+
     const mainTr = Dom.el("tr", {
       class: `customer-main ${cls}`,
       "data-customer": g.customer.toLowerCase(),
       "data-bills": g.bills.map((b) => b.reference.toLowerCase()).join(" "),
       "data-max-days": String(g.maxDaysOverdue || 0),
       "data-called": isCalled ? "1" : "0",
+      "data-due-dates": dueDateStrs.join("|"),
     });
 
     const chevron = Dom.el("td", { class: "cell-chevron", html: `<span class="chevron ${isOpen ? "open" : ""}">▶</span>` });
