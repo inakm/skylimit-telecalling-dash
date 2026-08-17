@@ -812,11 +812,135 @@ table.data-table {
   font-weight: 600;
 }
 
+/* ---------- Table toolbar (search + sort) ---------- */
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-1);
+  flex-wrap: wrap;
+}
+
+.sort-btns {
+  display: flex;
+  gap: var(--sp-xxs);
+  flex-wrap: wrap;
+}
+
+/* ---------- Customer table ---------- */
+
+.customer-table .customer-main {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.customer-table .customer-main:hover {
+  background: var(--surface-1);
+}
+
+.cell-chevron {
+  width: 32px;
+  text-align: center;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--ink-subtle);
+  transition: transform 0.2s ease;
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+.cell-phone {
+  font-size: var(--text-caption);
+  color: var(--ink-tertiary);
+  font-family: var(--font-mono);
+}
+
+.customer-detail {
+  display: none;
+}
+
+.customer-detail.open {
+  display: table-row;
+}
+
+.customer-detail td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--hairline) !important;
+}
+
+/* ---------- Bill detail sub-table ---------- */
+
+.bill-detail-wrap {
+  padding: var(--sp-sm) var(--sp-lg) var(--sp-sm) var(--sp-xxl);
+}
+
+.bill-detail-header {
+  display: grid;
+  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px;
+  gap: var(--sp-xs);
+  padding: var(--sp-xxs) 0;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: var(--sp-xxs);
+}
+
+.bill-detail-row {
+  display: grid;
+  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px;
+  gap: var(--sp-xs);
+  padding: var(--sp-xxs) 0;
+  border-bottom: 1px solid var(--surface-2);
+  align-items: center;
+  font-size: var(--text-caption);
+  color: var(--ink-muted);
+}
+
+.bill-detail-row:last-child {
+  border-bottom: none;
+}
+
+.bill-detail-cell {
+  padding: 2px 0;
+  white-space: nowrap;
+}
+
+.bill-detail-header .bill-detail-cell {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+
+/* ---------- Urgency row highlights ---------- */
+
+.row-critical {
+  background: rgba(211, 59, 59, 0.04) !important;
+}
+
+.row-high {
+  background: rgba(224, 124, 0, 0.03) !important;
+}
+
+.row-medium {
+  background: rgba(180, 83, 9, 0.02) !important;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1024px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .bill-detail-header, .bill-detail-row {
+    grid-template-columns: 120px 80px 80px 1fr 1fr 1fr 100px 80px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -828,6 +952,18 @@ table.data-table {
   .hub-title { font-size: var(--text-display-lg); }
   .search-box .input { width: 100%; }
   .page-header { flex-direction: column; align-items: flex-start; }
+  .bill-detail-header { display: none; }
+  .bill-detail-row {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-xxs);
+    padding: var(--sp-xs) 0;
+  }
+  .bill-detail-row .bill-detail-cell:nth-child(1) { font-weight: 600; color: var(--ink); grid-column: 1 / -1; }
+  .bill-detail-row .bill-detail-cell:nth-child(2)::before { content: "Issued: "; color: var(--ink-subtle); }
+  .bill-detail-row .bill-detail-cell:nth-child(3)::before { content: "Due: "; color: var(--ink-subtle); }
+  .bill-detail-row .bill-detail-cell:nth-child(4)::before { content: "Value: "; color: var(--ink-subtle); }
+  .bill-detail-row .bill-detail-cell:nth-child(5)::before { content: "Paid: "; color: var(--ink-subtle); }
+  .bill-detail-row .bill-detail-cell:nth-child(6)::before { content: "Balance: "; font-weight: 600; color: var(--ink); }
 }
 
 @media (max-width: 480px) {

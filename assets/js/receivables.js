@@ -1,6 +1,6 @@
 /* ============================================================
-   Accounts Receivable dashboard.
-   Data source: Google Sheets (configured in config.js) or CSV upload.
+   Accounts Receivable — Telecaller Dashboard.
+   Customer-grouped table, live search, sorting, expandable bills.
    ============================================================ */
 
 (() => {
@@ -22,9 +22,10 @@
   const headerMap = {
     reference: ["invoice", "inv no", "reference", "ref no", "receipt", "doc no", "invoice number", "inv no.", "bill no", "bill no."],
     customer: ["customer", "client", "company", "account", "customer name", "client name", "debtor"],
+    phone: ["phone", "mobile", "contact", "phone number", "mobile number", "contact number", "tel"],
     issueDate: ["invoice date", "issue date", "date", "billing date", "transaction date", "bill date"],
     dueDate: ["due date", "payment due", "due", "due on"],
-    amount: ["amount", "total", "balance", "outstanding", "amount due", "amount outstanding", "invoice amount", "balance due", "net amount"],
+    amount: ["amount", "total", "balance", "outstanding", "amount due", "amount outstanding", "invoice amount", "balance due", "net amount", "bill value", "bill amount"],
     paid: ["paid", "paid amount", "payment", "collected", "amount paid"],
     status: ["status", "payment status", "state", "invoice status"],
   };
@@ -78,6 +79,7 @@
       rows.push({
         reference: r[cols.reference] || "—",
         customer: r[cols.customer] || "—",
+        phone: cols.phone ? (r[cols.phone] || "").trim() : "",
         issueDate,
         dueDate,
         amount,
@@ -172,6 +174,77 @@
     return { records, cols };
   }
 
+  /* ---------- Grouping ---------- */
+
+  function groupByCustomer(rows) {
+    const map = {};
+    for (const r of rows) {
+      const name = r.customer;
+      if (!map[name]) {
+        map[name] = {
+          customer: name,
+          phone: r.phone || "",
+          bills: [],
+          totalAmount: 0,
+          totalPaid: 0,
+          totalBalance: 0,
+          maxDaysOverdue: null,
+          latestDueDate: null,
+        };
+      }
+      const g = map[name];
+      g.bills.push(r);
+      g.totalAmount += r.amount;
+      g.totalPaid += r.paid;
+      g.totalBalance += r.balance;
+      g.phone = g.phone || r.phone || "";
+      if (r.daysOverdue !== null) {
+        if (g.maxDaysOverdue === null || r.daysOverdue > g.maxDaysOverdue) {
+          g.maxDaysOverdue = r.daysOverdue;
+        }
+      }
+      if (r.dueDate && (!g.latestDueDate || r.dueDate < g.latestDueDate)) {
+        g.latestDueDate = r.dueDate;
+      }
+    }
+    return Object.values(map);
+  }
+
+  /* ---------- Sorting ---------- */
+
+  let currentSort = { key: "overdue", dir: "desc" };
+
+  function sortGroups(groups, sort) {
+    const sorted = [...groups];
+    switch (sort.key) {
+      case "name":
+        sorted.sort((a, b) => a.customer.localeCompare(b.customer));
+        break;
+      case "amount":
+        sorted.sort((a, b) => a.totalBalance - b.totalBalance);
+        break;
+      case "overdue":
+        sorted.sort((a, b) => (b.maxDaysOverdue || 0) - (a.maxDaysOverdue || 0));
+        break;
+      case "bills":
+        sorted.sort((a, b) => b.bills.length - a.bills.length);
+        break;
+    }
+    if (sort.dir === "desc" && sort.key !== "overdue" && sort.key !== "bills") {
+      sorted.reverse();
+    }
+    return sorted;
+  }
+
+  function toggleSort(key) {
+    if (currentSort.key === key) {
+      currentSort.dir = currentSort.dir === "asc" ? "desc" : "asc";
+    } else {
+      currentSort = { key, dir: key === "overdue" || key === "bills" ? "desc" : "asc" };
+    }
+    if (lastRows) renderDashboard(lastRows, lastSource);
+  }
+
   /* ---------- Rendering ---------- */
 
   function statusBadge(status) {
@@ -182,45 +255,56 @@
     if (s.includes("partial")) {
       return '<span class="badge badge-warning badge-dot">Partial</span>';
     }
-    if (s.includes("overdue") || s.includes("past due") || s.includes("due")) {
+    if (s.includes("overdue") || s.includes("past due")) {
       return '<span class="badge badge-danger badge-dot">Overdue</span>';
     }
-    if (s.includes("open") || s.includes("unpaid") || s.includes("pending") || s.includes("due now")) {
+    if (s.includes("open") || s.includes("unpaid") || s.includes("pending") || s.includes("due")) {
       return '<span class="badge badge-primary badge-dot">Open</span>';
     }
     return `<span class="badge badge-neutral">${status || "—"}</span>`;
   }
 
-  function statCard(label, value, opts = {}) {
-    const cls = ["stat-card"];
-    if (opts.mono) cls.push("stat-mono");
-    const el = Dom.el("div", { class: cls.join(" "), html: `
-      <div class="stat-label">${label}</div>
-      <div class="stat-value ${opts.mono ? "mono" : ""}">${value}</div>
-      ${opts.delta ? `<div class="stat-delta">${opts.delta}</div>` : ""}
-    `});
-    return el;
+  function overdueBadge(days) {
+    if (days === null) return "—";
+    if (days > 0) return `<span class="badge badge-danger badge-dot">${days}d overdue</span>`;
+    return `<span class="badge badge-neutral">${Math.abs(days)}d to go</span>`;
   }
 
-  function renderKpis(rows, totalOutstanding) {
-    const overdue = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue > 0);
-    const overdueTotal = overdue.reduce((s, r) => s + r.balance, 0);
+  function urgencyClass(days) {
+    if (days === null) return "";
+    if (days >= 90) return "row-critical";
+    if (days >= 60) return "row-high";
+    if (days >= 30) return "row-medium";
+    if (days > 0) return "row-low";
+    return "";
+  }
+
+  function statCard(label, value, opts = {}) {
+    return Dom.el("div", { class: "stat-card", html: `
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value}</div>
+      ${opts.delta ? `<div class="stat-delta">${opts.delta}</div>` : ""}
+    `});
+  }
+
+  function renderKpis(rows, totalOutstanding, groups) {
+    const overdueRows = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue > 0);
+    const overdueTotal = overdueRows.reduce((s, r) => s + r.balance, 0);
     const currentTotal = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue <= 0).reduce((s, r) => s + r.balance, 0);
     const days90 = rows.filter((r) => r.bucketDays !== null && r.bucketDays >= 91).reduce((s, r) => s + r.balance, 0);
+    const customersWithDue = groups.filter((g) => g.totalBalance > 0).length;
 
     const pctOverdue = totalOutstanding ? (overdueTotal / totalOutstanding) * 100 : 0;
-    const pct90 = totalOutstanding ? (days90 / totalOutstanding) * 100 : 0;
 
     const grid = Dom.el("div", { class: "stat-grid" });
     grid.appendChild(statCard("Total outstanding", Format.moneyWhole(totalOutstanding)));
-    grid.appendChild(statCard("Current (not due)", Format.moneyWhole(currentTotal)));
+    grid.appendChild(statCard("Customers pending", `<span class="mono">${customersWithDue}</span>`, {
+      delta: `<span>${rows.length} total bills</span>`,
+    }));
     grid.appendChild(statCard("Total overdue", Format.moneyWhole(overdueTotal), {
       delta: `<span class="down">${pctOverdue.toFixed(1)}% of outstanding</span>`,
     }));
-    grid.appendChild(statCard("90+ days risk", Format.moneyWhole(days90), {
-      delta: pct90 > 20 ? `<span class="down">${pct90.toFixed(1)}% of outstanding</span>` : `<span>${pct90.toFixed(1)}% of outstanding</span>`,
-    }));
-
+    grid.appendChild(statCard("High risk (60d+)", Format.moneyWhole(days90)));
     return grid;
   }
 
@@ -261,92 +345,207 @@
     return wrap;
   }
 
-  function renderTable(rows) {
-    const sorted = [...rows].sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+  function renderCustomerTable(groups) {
+    const sorted = sortGroups(groups, currentSort);
 
-    const wrap = Dom.el("div", { class: "card", style: "padding:0;overflow:hidden;" });
+    const wrap = Dom.el("div", { class: "card customer-table-card", style: "padding:0;overflow:hidden;" });
+
     const head = Dom.el("div", { class: "card-header", style: "padding:16px 20px;margin:0;border-bottom:1px solid var(--hairline);" });
     head.appendChild(Dom.el("div", { html: `
-      <div class="card-title">Receivable detail</div>
-      <div class="card-subtitle">${sorted.length} records · sorted by most overdue</div>
+      <div class="card-title">Customer Outstanding</div>
+      <div class="card-subtitle">${sorted.length} customers · click row to expand bills</div>
     `}));
     wrap.appendChild(head);
 
+    const toolbar = Dom.el("div", { class: "table-toolbar" });
+
+    const searchBox = Dom.el("div", { class: "search-box", html: `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="input" id="searchInput" type="text" placeholder="Search customer or bill number..." />
+    `});
+    toolbar.appendChild(searchBox);
+
+    const sortBtns = Dom.el("div", { class: "sort-btns" });
+    [
+      { key: "overdue", label: "Most overdue" },
+      { key: "amount", label: "Amount" },
+      { key: "name", label: "Name" },
+      { key: "bills", label: "Bill count" },
+    ].forEach((s) => {
+      const btn = Dom.el("button", {
+        class: `btn btn-sm ${currentSort.key === s.key ? "btn-primary" : "btn-secondary"}`,
+        text: s.label + (currentSort.key === s.key ? (currentSort.dir === "asc" ? " ↑" : " ↓") : ""),
+      });
+      btn.addEventListener("click", () => toggleSort(s.key));
+      sortBtns.appendChild(btn);
+    });
+    toolbar.appendChild(sortBtns);
+    wrap.appendChild(toolbar);
+
     const tWrap = Dom.el("div", { class: "table-wrap", style: "border:none;border-radius:0;" });
-    const table = Dom.el("table", { class: "data-table" });
+    const table = Dom.el("table", { class: "data-table customer-table" });
     const thead = Dom.el("thead");
     const hr = Dom.el("tr");
-    ["Reference", "Customer", "Invoice date", "Due date", "Overdue", "Balance", "Status"].forEach((h) => {
-      hr.appendChild(Dom.el("th", { text: h, class: h === "Balance" ? "num" : "" }));
+    ["", "Customer", "Pending bills", "Total balance", "Max overdue", "Status"].forEach((h) => {
+      const th = Dom.el("th", { text: h });
+      if (h === "Total balance" || h === "Pending bills") th.classList.add("num");
+      hr.appendChild(th);
     });
     thead.appendChild(hr);
     table.appendChild(thead);
 
     const tbody = Dom.el("tbody");
-    sorted.forEach((r) => {
-      const tr = Dom.el("tr");
-      tr.appendChild(Dom.el("td", { text: r.reference, class: "cell-title" }));
-      tr.appendChild(Dom.el("td", { text: r.customer }));
-      tr.appendChild(Dom.el("td", { text: Format.dateShort(r.issueDate) }));
-      tr.appendChild(Dom.el("td", { text: Format.dateShort(r.dueDate) }));
-      tr.appendChild(Dom.el("td", {
-        html: r.daysOverdue > 0
-          ? `<span class="badge badge-danger badge-dot">${r.daysOverdue}d overdue</span>`
-          : r.daysOverdue <= 0 && r.daysOverdue !== null
-            ? `<span class="badge badge-neutral">${Math.abs(r.daysOverdue)}d to go</span>`
-            : "—",
-      }));
-      tr.appendChild(Dom.el("td", { text: Format.money(r.balance), class: "num strong" }));
-      tr.appendChild(Dom.el("td", { html: statusBadge(r.status) }));
-      tbody.appendChild(tr);
+    sorted.forEach((g) => {
+      const row = buildCustomerRow(g);
+      tbody.appendChild(row.main);
+      tbody.appendChild(row.detail);
     });
     table.appendChild(tbody);
     tWrap.appendChild(table);
     wrap.appendChild(tWrap);
+
+    const searchInput = searchBox.querySelector("#searchInput");
+    searchInput.addEventListener("input", Dom.debounce((e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const allMain = tbody.querySelectorAll("tr.customer-main");
+      allMain.forEach((tr) => {
+        const name = tr.dataset.customer || "";
+        const bills = tr.dataset.bills || "";
+        const match = !q || name.includes(q) || bills.includes(q);
+        tr.style.display = match ? "" : "none";
+        const detail = tr.nextElementSibling;
+        if (detail && detail.classList.contains("customer-detail")) {
+          detail.style.display = match ? "" : "none";
+          if (match && q) detail.classList.add("open");
+        }
+      });
+    }, 200));
+
     return wrap;
   }
 
-  function renderDashboard(rows, sourceLabel) {
-    const totalOutstanding = rows.reduce((s, r) => s + r.balance, 0);
-    const dash = $("#dashboard");
-    Dom.clear(dash);
+  function buildCustomerRow(g) {
+    const isOpen = expandedCustomers.has(g.customer);
+    const cls = urgencyClass(g.maxDaysOverdue);
 
-    if (sourceLabel) {
-      const badge = Dom.el("div", { class: "source-badge", html: `<span class="badge badge-primary">${sourceLabel}</span>` });
-      dash.appendChild(badge);
+    const mainTr = Dom.el("tr", { class: `customer-main ${cls}`, "data-customer": g.customer.toLowerCase(), "data-bills": g.bills.map((b) => b.reference.toLowerCase()).join(" ") });
+
+    const chevron = Dom.el("td", { class: "cell-chevron", html: `<span class="chevron ${isOpen ? "open" : ""}">▶</span>` });
+    mainTr.appendChild(chevron);
+
+    const custCell = Dom.el("td", { class: "cell-title" });
+    custCell.appendChild(Dom.el("span", { text: g.customer }));
+    if (g.phone) {
+      custCell.appendChild(Dom.el("span", { class: "cell-phone", html: `&nbsp;· ${g.phone}` }));
     }
+    mainTr.appendChild(custCell);
 
-    dash.appendChild(renderTable(rows));
+    mainTr.appendChild(Dom.el("td", { text: `${g.bills.length} bill${g.bills.length > 1 ? "s" : ""}`, class: "num" }));
+    mainTr.appendChild(Dom.el("td", { text: Format.money(g.totalBalance), class: "num strong" }));
+    mainTr.appendChild(Dom.el("td", { html: overdueBadge(g.maxDaysOverdue), class: "num" }));
 
-    dash.appendChild(renderKpis(rows, totalOutstanding));
+    mainTr.appendChild(Dom.el("td", {
+      html: g.bills.every((b) => {
+        const s = String(b.status || "").toLowerCase();
+        return s.includes("paid") || s.includes("settled");
+      })
+        ? '<span class="badge badge-success badge-dot">All paid</span>'
+        : g.maxDaysOverdue > 0
+          ? '<span class="badge badge-danger badge-dot">Needs follow-up</span>'
+          : '<span class="badge badge-primary badge-dot">Pending</span>',
+    }));
 
-    const charts = Dom.el("div", { class: "grid-2" });
-    charts.appendChild(renderAgingChart(rows));
-    charts.appendChild(Dom.el("div", { class: "card", html: `
-      <div class="card-header">
-        <div>
-          <div class="card-title">Overdue concentration</div>
-          <div class="card-subtitle">Outstanding balance by customer, most overdue first</div>
-        </div>
-      </div>
-    `}));
+    const detailTr = Dom.el("tr", { class: `customer-detail ${isOpen ? "open" : ""}` });
+    const detailTd = Dom.el("td", { colspan: "6" });
+
+    const subTable = Dom.el("div", { class: "bill-detail-wrap" });
+    const subHead = Dom.el("div", { class: "bill-detail-header" });
+    ["Bill No", "Bill date", "Due date", "Bill value", "Paid", "Balance", "Overdue", "Status"].forEach((h) => {
+      subHead.appendChild(Dom.el("div", { class: `bill-detail-cell ${h === "Bill value" || h === "Paid" || h === "Balance" ? "num" : ""}`, text: h }));
+    });
+    subTable.appendChild(subHead);
+
+    const sortedBills = [...g.bills].sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
+    sortedBills.forEach((b) => {
+      const r = Dom.el("div", { class: `bill-detail-row ${urgencyClass(b.daysOverdue)}` });
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell cell-title", text: b.reference }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell", text: Format.dateShort(b.issueDate) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell", text: Format.dateShort(b.dueDate) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell num", text: Format.money(b.amount) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell num", text: Format.money(b.paid) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell num strong", text: Format.money(b.balance) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell", html: overdueBadge(b.daysOverdue) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell", html: statusBadge(b.status) }));
+      subTable.appendChild(r);
+    });
+
+    detailTd.appendChild(subTable);
+    detailTr.appendChild(detailTd);
+
+    mainTr.addEventListener("click", () => {
+      const chev = mainTr.querySelector(".chevron");
+      const isOpenNow = detailTr.classList.toggle("open");
+      chev.classList.toggle("open", isOpenNow);
+      if (isOpenNow) expandedCustomers.add(g.customer);
+      else expandedCustomers.delete(g.customer);
+    });
+
+    return { main: mainTr, detail: detailTr };
+  }
+
+  function renderBarChart(rows) {
     const topCustomers = [...rows]
       .filter((r) => r.balance > 0)
       .reduce((acc, r) => {
         const k = r.customer;
-        acc[k] = acc[k] || { label: k, value: 0, count: 0 };
+        acc[k] = acc[k] || { label: k, value: 0 };
         acc[k].value += r.balance;
-        acc[k].count += 1;
         return acc;
       }, {});
     const topSorted = Object.values(topCustomers).sort((a, b) => b.value - a.value).slice(0, 8);
-    charts.lastChild.appendChild(Dom.el("div", { class: "chart-wrap" }));
-    charts.lastChild.lastChild.appendChild(Charts.barChart({
+
+    const wrap = Dom.el("div", { class: "card" });
+    wrap.appendChild(Dom.el("div", { class: "card-header", html: `
+      <div>
+        <div class="card-title">Top customers by balance</div>
+        <div class="card-subtitle">Outstanding amount by customer</div>
+      </div>
+    `}));
+    wrap.appendChild(Dom.el("div", { class: "chart-wrap" }));
+    wrap.lastChild.appendChild(Charts.barChart({
       items: topSorted,
       height: 280,
       horizontal: true,
       format: (v) => Format.moneyWhole(v),
     }));
+    return wrap;
+  }
+
+  /* ---------- Dashboard ---------- */
+
+  let lastRows = null;
+  let lastSource = null;
+  const expandedCustomers = new Set();
+
+  function renderDashboard(rows, sourceLabel) {
+    lastRows = rows;
+    lastSource = sourceLabel;
+
+    const totalOutstanding = rows.reduce((s, r) => s + r.balance, 0);
+    const groups = groupByCustomer(rows);
+    const dash = $("#dashboard");
+    Dom.clear(dash);
+
+    if (sourceLabel) {
+      dash.appendChild(Dom.el("div", { class: "source-badge", html: `<span class="badge badge-primary">${sourceLabel}</span>` }));
+    }
+
+    dash.appendChild(renderKpis(rows, totalOutstanding, groups));
+    dash.appendChild(renderCustomerTable(groups));
+
+    const charts = Dom.el("div", { class: "grid-2" });
+    charts.appendChild(renderAgingChart(rows));
+    charts.appendChild(renderBarChart(rows));
     dash.appendChild(charts);
 
     const now = new Date();
@@ -356,24 +555,23 @@
   function renderPlaceholder() {
     const banner = Dom.el("div", { class: "status-banner warning", html: `
       <strong>Data source not configured</strong>
-      <span>&nbsp;—&nbsp;The Google Sheet URL is not set, and no file has been uploaded. Configure the URL in
+      <span>&nbsp;—&nbsp;The Google Sheet URL is not set. Configure it in
       <code>assets/js/config.js</code> or upload a CSV/Excel file using the button above.</span>
     `});
     $("#statusBanner").appendChild(banner);
 
     const box = Dom.el("div", { class: "card", style: "text-align:center;padding:64px 24px;" });
-    box.appendChild(Dom.el("div", { class: "state-icon", text: "💰" }));
-    box.appendChild(Dom.el("h3", { text: "Receivables dashboard coming soon" }));
-    box.appendChild(Dom.el("p", { text: "Upload a CSV file or configure the Google Sheet to get started." }));
-    const btn = Dom.el("a", { class: "btn btn-secondary", href: "index.html", text: "Back to home" });
-    box.appendChild(btn);
+    box.appendChild(Dom.el("div", { class: "state-icon", html: "📞" }));
+    box.appendChild(Dom.el("h3", { text: "No receivables data loaded" }));
+    box.appendChild(Dom.el("p", { text: "Configure the Google Sheet or upload a file to start tracking outstanding payments." }));
+    box.appendChild(Dom.el("a", { class: "btn btn-secondary", href: "index.html", text: "Back to home" }));
     $("#dashboard").appendChild(box);
   }
 
   function renderError(err) {
     $("#dashboard").innerHTML = "";
     const box = Dom.el("div", { class: "card", style: "text-align:center;padding:64px 24px;" });
-    box.appendChild(Dom.el("div", { class: "state-icon", text: "⚠️" }));
+    box.appendChild(Dom.el("div", { class: "state-icon", html: "⚠️" }));
     box.appendChild(Dom.el("h3", { text: "Could not load receivables data" }));
     box.appendChild(Dom.el("p", { text: err.message }));
     const retry = Dom.el("button", { class: "btn btn-secondary", text: "Try again" });
@@ -382,7 +580,7 @@
     $("#dashboard").appendChild(box);
   }
 
-  /* ---------- Load from Google Sheets ---------- */
+  /* ---------- Load ---------- */
 
   async function loadFromSheet() {
     const refreshBtn = $("#refreshBtn");
@@ -410,8 +608,6 @@
       refreshBtn.classList.remove("loading");
     }
   }
-
-  /* ---------- Load from CSV upload ---------- */
 
   async function loadFromCSV(file) {
     try {
