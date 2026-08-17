@@ -7,14 +7,17 @@
   const $ = (sel) => document.querySelector(sel);
 
   const AGING_BUCKETS = [
-    { label: "Current", min: 0, max: 30 },
+    { label: "1–7 days", min: 1, max: 7 },
+    { label: "8–14 days", min: 8, max: 14 },
+    { label: "15–30 days", min: 15, max: 30 },
     { label: "31–60 days", min: 31, max: 60 },
     { label: "61–90 days", min: 61, max: 90 },
     { label: "90+ days", min: 91, max: Infinity },
   ];
 
+  const AGING_COLORS = ["#27a644", "#34b856", "#5e6ad2", "#b45309", "#e07c00", "#d33b3b"];
+
   const SHEET = CONFIG.receivables;
-  const BUNDLED_FILE = "Outward_testDTA.xlsx";
 
   const headerMap = {
     reference: ["invoice", "inv no", "reference", "ref no", "receipt", "doc no", "invoice number", "inv no.", "bill no", "bill no."],
@@ -200,9 +203,6 @@
   }
 
   function renderKpis(rows, totalOutstanding) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const overdue = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue > 0);
     const overdueTotal = overdue.reduce((s, r) => s + r.balance, 0);
     const currentTotal = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue <= 0).reduce((s, r) => s + r.balance, 0);
@@ -213,7 +213,7 @@
 
     const grid = Dom.el("div", { class: "stat-grid" });
     grid.appendChild(statCard("Total outstanding", Format.moneyWhole(totalOutstanding)));
-    grid.appendChild(statCard("Current (0–30 days)", Format.moneyWhole(currentTotal)));
+    grid.appendChild(statCard("Current (not due)", Format.moneyWhole(currentTotal)));
     grid.appendChild(statCard("Total overdue", Format.moneyWhole(overdueTotal), {
       delta: `<span class="down">${pctOverdue.toFixed(1)}% of outstanding</span>`,
     }));
@@ -230,8 +230,7 @@
       value: rows.filter((r) => r.bucket === b.label).reduce((s, r) => s + r.balance, 0),
     }));
 
-    const colors = ["#27a644", "#5e6ad2", "#b45309", "#d33b3b"];
-    const segs = buckets.map((b, i) => ({ ...b, color: colors[i] }));
+    const segs = buckets.map((b, i) => ({ ...b, color: AGING_COLORS[i] }));
 
     const wrap = Dom.el("div", { class: "card" });
     wrap.appendChild(Dom.el("div", { class: "card-header", html: `
@@ -253,7 +252,7 @@
     const legend = Dom.el("div", { class: "legend" });
     segs.forEach((s, i) => {
       legend.appendChild(Dom.el("div", { class: "legend-item", html: `
-        <span class="legend-swatch" style="background:${colors[i]}"></span>
+        <span class="legend-swatch" style="background:${AGING_COLORS[i]}"></span>
         ${s.label} · ${Format.moneyWhole(s.value)}
       `}));
     });
@@ -317,6 +316,8 @@
       dash.appendChild(badge);
     }
 
+    dash.appendChild(renderTable(rows));
+
     dash.appendChild(renderKpis(rows, totalOutstanding));
 
     const charts = Dom.el("div", { class: "grid-2" });
@@ -347,8 +348,6 @@
       format: (v) => Format.moneyWhole(v),
     }));
     dash.appendChild(charts);
-
-    dash.appendChild(renderTable(rows));
 
     const now = new Date();
     $("#lastUpdated").textContent = `Updated ${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
@@ -383,44 +382,28 @@
     $("#dashboard").appendChild(box);
   }
 
-  /* ---------- Load from Google Sheets (with bundled fallback) ---------- */
+  /* ---------- Load from Google Sheets ---------- */
 
   async function loadFromSheet() {
     const refreshBtn = $("#refreshBtn");
     refreshBtn.classList.add("loading");
     try {
-      $("#statusBanner").innerHTML = "";
-
-      if (SHEET.sheetUrl) {
-        try {
-          const records = await Sheets.getRows(SHEET.sheetUrl, SHEET.gid);
-          if (records.length) {
-            const headers = Object.keys(records[0]);
-            const cols = matchHeader(headers);
-            if (cols.amount && cols.customer) {
-              const rows = buildRows(records, cols);
-              renderDashboard(rows, "Google Sheets");
-              return;
-            }
-          }
-        } catch (_) { /* sheet fetch failed, fall through to bundled file */ }
+      if (!SHEET.sheetUrl) {
+        renderPlaceholder();
+        return;
       }
-
-      const res = await fetch(BUNDLED_FILE);
-      if (!res.ok) throw new Error("No data source available. Upload a file or configure the Google Sheet.");
-      const buf = await res.arrayBuffer();
-      const records = parseExcel(buf);
-      if (!records.length) throw new Error("Bundled file contains no data rows.");
+      $("#statusBanner").innerHTML = "";
+      const records = await Sheets.getRows(SHEET.sheetUrl, SHEET.gid);
+      if (!records.length) throw new Error("The sheet contains no data rows.");
 
       const headers = Object.keys(records[0]);
       const cols = matchHeader(headers);
       if (!cols.amount || !cols.customer) {
-        throw new Error("Could not map columns from bundled file.");
+        throw new Error("Could not map columns. Expected at least customer and amount columns (e.g. Client Name, Amount/Balance).");
       }
 
       const rows = buildRows(records, cols);
-      const label = SHEET.sheetUrl ? "Bundled file (sheet unavailable)" : "Bundled file";
-      renderDashboard(rows, label);
+      renderDashboard(rows, "Google Sheets");
     } catch (err) {
       renderError(err);
     } finally {

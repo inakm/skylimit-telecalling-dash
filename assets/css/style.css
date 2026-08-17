@@ -147,17 +147,11 @@ a:hover {
   white-space: nowrap;
 }
 
-.nav-brand .brand-mark {
-  width: 26px;
-  height: 26px;
+.nav-brand .brand-logo {
+  width: 28px;
+  height: 28px;
   border-radius: var(--r-sm);
-  background: var(--primary);
-  color: var(--on-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  object-fit: contain;
 }
 
 .nav-brand:hover {

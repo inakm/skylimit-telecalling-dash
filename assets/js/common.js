@@ -63,16 +63,16 @@ const Sheets = (() => {
 })();
 
 const Format = (() => {
-  const currency = new Intl.NumberFormat("en-PH", {
+  const currency = new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "PHP",
+    currency: "INR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 
-  const currencyWhole = new Intl.NumberFormat("en-PH", {
+  const currencyWhole = new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "PHP",
+    currency: "INR",
     maximumFractionDigits: 0,
   });
 
@@ -94,7 +94,7 @@ const Format = (() => {
   function parseNumber(v) {
     if (typeof v === "number") return v;
     if (v === null || v === undefined || v === "") return NaN;
-    const cleaned = String(v).replace(/[₱P,\s]/g, "").replace(/[()]/g, "-");
+    const cleaned = String(v).replace(/[₹P,\s]/g, "").replace(/[()]/g, "-");
     const n = parseFloat(cleaned);
     return Number.isFinite(n) ? n : NaN;
   }
