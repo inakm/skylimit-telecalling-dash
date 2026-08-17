@@ -933,6 +933,155 @@ table.data-table {
   background: rgba(180, 83, 9, 0.02) !important;
 }
 
+/* ---------- Aging Analysis ---------- */
+
+.aging-summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-md);
+  padding: 0 var(--sp-lg) var(--sp-md);
+}
+
+.aging-summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xxs);
+}
+
+.aging-summary-label {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-subtle);
+}
+
+.aging-summary-value {
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.aging-summary-value.danger {
+  color: var(--semantic-danger);
+}
+
+.aging-stacked-bar {
+  display: flex;
+  height: 8px;
+  margin: 0 var(--sp-lg) var(--sp-md);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.aging-stacked-seg {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.aging-stacked-seg:first-child {
+  border-radius: var(--r-pill) 0 0 var(--r-pill);
+}
+
+.aging-stacked-seg:last-child {
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+}
+
+.aging-table {
+  margin: 0;
+}
+
+.aging-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: var(--sp-xs);
+  vertical-align: middle;
+}
+
+.aging-bar-cell {
+  width: 140px;
+}
+
+.aging-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.aging-bar-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width 0.3s ease;
+}
+
+/* ---------- Heatmap ---------- */
+
+.heatmap-table .heatmap-cell {
+  padding: var(--sp-xs) !important;
+}
+
+.heatmap-value {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- Collection Priority ---------- */
+
+.priority-score {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.priority-score-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width 0.3s ease;
+}
+
+.priority-score-fill.urgent {
+  background: var(--semantic-danger);
+}
+
+.priority-score-fill.high {
+  background: var(--semantic-warning);
+}
+
+.priority-score-fill.normal {
+  background: var(--primary);
+}
+
+.priority-score-label {
+  font-size: var(--text-caption);
+  color: var(--ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-urgent {
+  color: var(--semantic-danger) !important;
+  font-weight: 700 !important;
+}
+
+.rank-high {
+  color: var(--semantic-warning) !important;
+  font-weight: 600 !important;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1024px) {
@@ -941,6 +1090,7 @@ table.data-table {
   .bill-detail-header, .bill-detail-row {
     grid-template-columns: 120px 80px 80px 1fr 1fr 1fr 100px 80px;
   }
+  .aging-summary-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -964,6 +1114,8 @@ table.data-table {
   .bill-detail-row .bill-detail-cell:nth-child(4)::before { content: "Value: "; color: var(--ink-subtle); }
   .bill-detail-row .bill-detail-cell:nth-child(5)::before { content: "Paid: "; color: var(--ink-subtle); }
   .bill-detail-row .bill-detail-cell:nth-child(6)::before { content: "Balance: "; font-weight: 600; color: var(--ink); }
+  .aging-summary-row { grid-template-columns: 1fr 1fr; }
+  .heatmap-table, .priority-table { font-size: var(--text-caption); }
 }
 
 @media (max-width: 480px) {

@@ -493,6 +493,254 @@
     return { main: mainTr, detail: detailTr };
   }
 
+  /* ---------- Aging Analysis ---------- */
+
+  function computeAgingData(rows) {
+    const totalOutstanding = rows.reduce((s, r) => s + r.balance, 0);
+    const overdueRows = rows.filter((r) => r.daysOverdue !== null && r.daysOverdue > 0);
+    const overdueTotal = overdueRows.reduce((s, r) => s + r.balance, 0);
+
+    return AGING_BUCKETS.map((b, i) => {
+      const matching = rows.filter((r) => r.bucket === b.label);
+      const total = matching.reduce((s, r) => s + r.balance, 0);
+      const count = matching.length;
+      const pct = totalOutstanding ? (total / totalOutstanding) * 100 : 0;
+      const overduePct = overdueTotal ? (total / overdueTotal) * 100 : 0;
+      const avgDays = matching.length
+        ? Math.round(matching.reduce((s, r) => s + (r.daysOverdue || 0), 0) / matching.length)
+        : 0;
+      return { ...b, color: AGING_COLORS[i], total, count, pct, overduePct, avgDays, rows: matching };
+    });
+  }
+
+  function renderAgingAnalysis(rows) {
+    const data = computeAgingData(rows);
+    const totalOutstanding = rows.reduce((s, r) => s + r.balance, 0);
+    const overdueTotal = rows.filter((r) => r.daysOverdue > 0).reduce((s, r) => s + r.balance, 0);
+    const totalBills = rows.length;
+    const overdueBills = rows.filter((r) => r.daysOverdue > 0).length;
+
+    const wrap = Dom.el("div", { class: "card" });
+    wrap.appendChild(Dom.el("div", { class: "card-header", html: `
+      <div>
+        <div class="card-title">Advanced Aging Analysis</div>
+        <div class="card-subtitle">Detailed breakdown of outstanding balances by age bucket</div>
+      </div>
+    `}));
+
+    const summaryRow = Dom.el("div", { class: "aging-summary-row" });
+    summaryRow.appendChild(Dom.el("div", { class: "aging-summary-stat", html: `
+      <span class="aging-summary-label">Total Outstanding</span>
+      <span class="aging-summary-value">${Format.money(totalOutstanding)}</span>
+    `}));
+    summaryRow.appendChild(Dom.el("div", { class: "aging-summary-stat", html: `
+      <span class="aging-summary-label">Overdue Amount</span>
+      <span class="aging-summary-value danger">${Format.money(overdueTotal)}</span>
+    `}));
+    summaryRow.appendChild(Dom.el("div", { class: "aging-summary-stat", html: `
+      <span class="aging-summary-label">Total Bills</span>
+      <span class="aging-summary-value">${totalBills}</span>
+    `}));
+    summaryRow.appendChild(Dom.el("div", { class: "aging-summary-stat", html: `
+      <span class="aging-summary-label">Overdue Bills</span>
+      <span class="aging-summary-value danger">${overdueBills}</span>
+    `}));
+    wrap.appendChild(summaryRow);
+
+    const stackedBar = Dom.el("div", { class: "aging-stacked-bar" });
+    data.forEach((d) => {
+      if (d.total > 0) {
+        const seg = Dom.el("div", {
+          class: "aging-stacked-seg",
+          style: `width:${d.pct}%;background:${d.color};`,
+          title: `${d.label}: ${Format.money(d.total)} (${d.pct.toFixed(1)}%)`,
+        });
+        stackedBar.appendChild(seg);
+      }
+    });
+    wrap.appendChild(stackedBar);
+
+    const table = Dom.el("table", { class: "data-table aging-table" });
+    const thead = Dom.el("thead");
+    const hr = Dom.el("tr");
+    ["Aging Bucket", "Bills", "Amount", "% of Total", "% of Overdue", "Avg Days Overdue", "Distribution"].forEach((h) => {
+      const th = Dom.el("th", { text: h });
+      if (h === "Amount" || h === "Bills" || h === "% of Total" || h === "% of Overdue" || h === "Avg Days Overdue") th.classList.add("num");
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = Dom.el("tbody");
+    data.forEach((d) => {
+      const tr = Dom.el("tr");
+      const bucketLabel = Dom.el("td", { class: "cell-title" });
+      bucketLabel.appendChild(Dom.el("span", { class: "aging-dot", style: `background:${d.color};` }));
+      bucketLabel.appendChild(document.createTextNode(` ${d.label}`));
+      tr.appendChild(bucketLabel);
+
+      tr.appendChild(Dom.el("td", { text: `${d.count}`, class: "num" }));
+      tr.appendChild(Dom.el("td", { text: Format.money(d.total), class: "num strong" }));
+      tr.appendChild(Dom.el("td", { text: `${d.pct.toFixed(1)}%`, class: "num" }));
+      tr.appendChild(Dom.el("td", { text: `${d.overduePct.toFixed(1)}%`, class: "num" }));
+      tr.appendChild(Dom.el("td", { text: d.avgDays > 0 ? `${d.avgDays}d` : "—", class: "num" }));
+
+      const barCell = Dom.el("td", { class: "aging-bar-cell" });
+      const barWrap = Dom.el("div", { class: "aging-bar-wrap" });
+      const bar = Dom.el("div", { class: "aging-bar-fill", style: `width:${d.pct}%;background:${d.color};` });
+      barWrap.appendChild(bar);
+      barCell.appendChild(barWrap);
+      tr.appendChild(barCell);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(Dom.el("div", { class: "table-wrap", style: "border:none;border-radius:0;" })).appendChild(table);
+
+    return wrap;
+  }
+
+  function renderCustomerAgingHeatmap(rows, groups) {
+    const wrap = Dom.el("div", { class: "card" });
+    wrap.appendChild(Dom.el("div", { class: "card-header", html: `
+      <div>
+        <div class="card-title">Customer Aging Heatmap</div>
+        <div class="card-subtitle">Which aging buckets each customer falls into (top 15 by balance)</div>
+      </div>
+    `}));
+
+    const topGroups = [...groups]
+      .filter((g) => g.totalBalance > 0)
+      .sort((a, b) => b.totalBalance - a.totalBalance)
+      .slice(0, 15);
+
+    const table = Dom.el("table", { class: "data-table heatmap-table" });
+    const thead = Dom.el("thead");
+    const hr = Dom.el("tr");
+    hr.appendChild(Dom.el("th", { text: "Customer" }));
+    hr.appendChild(Dom.el("th", { text: "Total", class: "num" }));
+    AGING_BUCKETS.forEach((b, i) => {
+      const th = Dom.el("th", { text: b.label, class: "num", style: `color:${AGING_COLORS[i]};` });
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = Dom.el("tbody");
+    topGroups.forEach((g) => {
+      const tr = Dom.el("tr");
+      const nameCell = Dom.el("td", { class: "cell-title" });
+      nameCell.textContent = g.customer.length > 28 ? g.customer.slice(0, 26) + "…" : g.customer;
+      tr.appendChild(nameCell);
+      tr.appendChild(Dom.el("td", { text: Format.moneyWhole(g.totalBalance), class: "num strong" }));
+
+      AGING_BUCKETS.forEach((b) => {
+        const bucketBalance = g.bills.filter((r) => r.bucket === b.label).reduce((s, r) => s + r.balance, 0);
+        const cell = Dom.el("td", { class: "num heatmap-cell" });
+        if (bucketBalance > 0) {
+          const intensity = g.totalBalance ? bucketBalance / g.totalBalance : 0;
+          const colorIdx = AGING_BUCKETS.indexOf(b);
+          cell.appendChild(Dom.el("span", {
+            class: "heatmap-value",
+            style: `background:${AGING_COLORS[colorIdx]};opacity:${0.15 + intensity * 0.85};color:${intensity > 0.4 ? "#fff" : AGING_COLORS[colorIdx]};`,
+            text: Format.moneyWhole(bucketBalance),
+          }));
+        } else {
+          cell.textContent = "—";
+        }
+        tr.appendChild(cell);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(Dom.el("div", { class: "table-wrap", style: "border:none;border-radius:0;" })).appendChild(table);
+
+    return wrap;
+  }
+
+  function renderCollectionPriority(groups) {
+    const pending = groups
+      .filter((g) => g.totalBalance > 0)
+      .map((g) => {
+        const overdueBills = g.bills.filter((b) => b.daysOverdue > 0);
+        const overdueAmount = overdueBills.reduce((s, b) => s + b.balance, 0);
+        const maxOverdue = g.maxDaysOverdue || 0;
+        const billCount = g.bills.length;
+
+        const score = Math.round(
+          (overdueAmount / 1000) * 2 +
+          maxOverdue * 1.5 +
+          billCount * 10 +
+          (overdueBills.length / Math.max(billCount, 1)) * 50
+        );
+
+        return {
+          ...g,
+          overdueAmount,
+          overdueBillCount: overdueBills.length,
+          score,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const maxScore = pending.length ? pending[0].score : 1;
+
+    const wrap = Dom.el("div", { class: "card" });
+    wrap.appendChild(Dom.el("div", { class: "card-header", html: `
+      <div>
+        <div class="card-title">Collection Priority</div>
+        <div class="card-subtitle">Call these customers first — ranked by urgency score (amount × age × bill count)</div>
+      </div>
+    `}));
+
+    const table = Dom.el("table", { class: "data-table priority-table" });
+    const thead = Dom.el("thead");
+    const hr = Dom.el("tr");
+    ["#", "Customer", "Phone", "Overdue amount", "Overdue bills", "Max overdue", "Score"].forEach((h) => {
+      const th = Dom.el("th", { text: h });
+      if (["Overdue amount", "Overdue bills", "Max overdue", "Score", "#"].includes(h)) th.classList.add("num");
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = Dom.el("tbody");
+    pending.slice(0, 20).forEach((g, i) => {
+      const tr = Dom.el("tr");
+      const rank = i + 1;
+      const rankClass = rank <= 3 ? "rank-urgent" : rank <= 7 ? "rank-high" : "";
+
+      tr.appendChild(Dom.el("td", { class: `num ${rankClass}`, text: `${rank}` }));
+
+      const custCell = Dom.el("td", { class: "cell-title" });
+      custCell.textContent = g.customer;
+      tr.appendChild(custCell);
+
+      tr.appendChild(Dom.el("td", { class: "cell-phone", text: g.phone || "—" }));
+      tr.appendChild(Dom.el("td", { text: Format.money(g.overdueAmount), class: "num strong" }));
+      tr.appendChild(Dom.el("td", { text: `${g.overdueBillCount}/${g.bills.length}`, class: "num" }));
+      tr.appendChild(Dom.el("td", { html: overdueBadge(g.maxDaysOverdue), class: "num" }));
+
+      const scoreCell = Dom.el("td", { class: "num" });
+      const scoreBar = Dom.el("div", { class: "priority-score" });
+      const scoreFill = Dom.el("div", {
+        class: `priority-score-fill ${rank <= 3 ? "urgent" : rank <= 7 ? "high" : "normal"}`,
+        style: `width:${Math.round((g.score / maxScore) * 100)}%;`,
+      });
+      scoreBar.appendChild(scoreFill);
+      const scoreLabel = Dom.el("span", { class: "priority-score-label", text: `${g.score}` });
+      scoreCell.appendChild(scoreBar);
+      scoreCell.appendChild(scoreLabel);
+      tr.appendChild(scoreCell);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(Dom.el("div", { class: "table-wrap", style: "border:none;border-radius:0;" })).appendChild(table);
+
+    return wrap;
+  }
+
   function renderBarChart(rows) {
     const topCustomers = [...rows]
       .filter((r) => r.balance > 0)
@@ -541,12 +789,16 @@
     }
 
     dash.appendChild(renderKpis(rows, totalOutstanding, groups));
+    dash.appendChild(renderAgingAnalysis(rows));
     dash.appendChild(renderCustomerTable(groups));
 
     const charts = Dom.el("div", { class: "grid-2" });
     charts.appendChild(renderAgingChart(rows));
     charts.appendChild(renderBarChart(rows));
     dash.appendChild(charts);
+
+    dash.appendChild(renderCustomerAgingHeatmap(rows, groups));
+    dash.appendChild(renderCollectionPriority(groups));
 
     const now = new Date();
     $("#lastUpdated").textContent = `Updated ${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
