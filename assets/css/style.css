@@ -1981,6 +1981,46 @@ table.data-table {
   font-size: var(--text-display-md);
 }
 
+/* ---------- Paid Customers Table ---------- */
+
+.paid-table-card {
+  border: 2px solid var(--semantic-success);
+  border-radius: var(--r-lg);
+}
+
+.paid-table-card .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-sm);
+}
+
+.paid-table-card .card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+}
+
+/* ---------- Purge Button ---------- */
+
+.purge-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--sp-lg);
+}
+
+.btn-danger {
+  background: var(--semantic-danger);
+  color: #fff;
+  border-color: var(--semantic-danger);
+}
+
+.btn-danger:hover {
+  background: #b92e2e;
+  border-color: #b92e2e;
+  color: #fff;
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {

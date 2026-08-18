@@ -139,6 +139,7 @@
   function saveCallStatus(s) { saveJSON(STORAGE_KEY, s); }
   function getCallStatus(customer) { return loadCallStatus()[customer] || null; }
   function resetAllCallStatus() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(HISTORY_KEY); }
+  function purgeAllData() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(HISTORY_KEY); localStorage.removeItem(NOTES_KEY); }
 
   /* ---------- History ---------- */
   function loadHistory() { return loadJSON(HISTORY_KEY); }
@@ -713,7 +714,8 @@
   let selectedCustomers = new Set();
 
   function renderCustomerTable(groups) {
-    const sorted = sortGroups(groups, currentSort);
+    const pending = groups.filter((g) => g.totalBalance > 0);
+    const sorted = sortGroups(pending, currentSort);
     const wrap = Dom.el("div", { class: "card customer-table-card", style: "padding:0;overflow:hidden;" });
 
     const head = Dom.el("div", { class: "card-header", style: "padding:16px 20px;margin:0;border-bottom:1px solid var(--hairline);" });
@@ -888,13 +890,16 @@
 
     /* --- Export --- */
     const exportBtn = Dom.el("button", { class: "btn btn-sm btn-secondary export-btn", html: `${I.download} Full Report` });
-    exportBtn.addEventListener("click", () => exportFilteredCSV(sorted));
+    exportBtn.addEventListener("click", () => exportFilteredCSV(groups));
     toolbar.appendChild(exportBtn);
 
     /* --- Import --- */
     const importInput = Dom.el("input", { type: "file", accept: ".csv,.txt", hidden: "" });
     const importBtn = Dom.el("button", { class: "btn btn-sm btn-secondary", html: `${I.fileDown} Import Report` });
-    importBtn.addEventListener("click", () => importInput.click());
+    importBtn.addEventListener("click", () => {
+      if (!confirm("This will replace all existing call status, history, and remarks on this dashboard. Continue?")) return;
+      importInput.click();
+    });
     importInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
@@ -1089,6 +1094,61 @@
     });
 
     return { main: mainTr, detail: detailTr };
+  }
+
+  /* ---------- Paid Customers Table ---------- */
+  function renderPaidTable(paidGroups) {
+    if (!paidGroups.length) return null;
+    const totalPaid = paidGroups.reduce((s, g) => s + g.totalAmount, 0);
+    const wrap = Dom.el("div", { class: "card paid-table-card" });
+    wrap.appendChild(Dom.el("div", { class: "card-header", html: `
+      <div><div class="card-title">${I.checkCircle} Paid / Settled Customers</div>
+      <div class="card-subtitle">${paidGroups.length} customer${paidGroups.length > 1 ? "s" : ""} · ${Format.moneyWhole(totalPaid)} total settled</div></div>
+    `}));
+    const tWrap = Dom.el("div", { class: "table-wrap", style: "border:none;border-radius:0;" });
+    const table = Dom.el("table", { class: "data-table" });
+    const thead = Dom.el("thead");
+    const hr = Dom.el("tr");
+    ["", "Customer", "Phone", "Bills", "Total Amount", "Settled Status"].forEach((h) => {
+      const th = Dom.el("th", { text: h });
+      if (h === "Total Amount" || h === "Bills") th.classList.add("num");
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    const tbody = Dom.el("tbody");
+    paidGroups.forEach((g) => {
+      const st = getCallStatus(g.customer);
+      const tr = Dom.el("tr");
+      tr.appendChild(Dom.el("td", { class: "cell-chevron", html: `<span style="color:var(--semantic-success);font-size:12px;">${I.checkCircle}</span>` }));
+      const custCell = Dom.el("td", { class: "cell-title" });
+      custCell.appendChild(Dom.el("span", { text: g.customer }));
+      if (g.phone) custCell.appendChild(Dom.el("span", { class: "cell-phone", html: `&nbsp;· ${g.phone}` }));
+      tr.appendChild(custCell);
+      tr.appendChild(Dom.el("td", { text: g.phone || "—", class: "num", style: "font-family:var(--font-mono);font-size:12px;color:var(--ink-subtle);" }));
+      tr.appendChild(Dom.el("td", { text: `${g.bills.length}`, class: "num" }));
+      tr.appendChild(Dom.el("td", { text: Format.money(g.totalAmount), class: "num strong" }));
+      tr.appendChild(Dom.el("td", { html: st ? callStatusBadge(g.customer) : '<span class="badge badge-success badge-dot">All paid</span>' }));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tWrap.appendChild(table);
+    wrap.appendChild(tWrap);
+    return wrap;
+  }
+
+  /* ---------- Purge Button ---------- */
+  function renderPurgeBtn() {
+    const wrap = Dom.el("div", { class: "purge-wrap" });
+    const purgeBtn = Dom.el("button", { class: "btn btn-sm btn-danger", html: `${I.trash} Purge All Data` });
+    purgeBtn.addEventListener("click", () => {
+      if (!confirm("This will permanently delete ALL call status, history, and remarks for every customer. This cannot be undone. Are you sure?")) return;
+      if (!confirm("Last chance — all telecaller data will be erased. Continue?")) return;
+      purgeAllData();
+      if (lastRows) renderDashboard(lastRows, lastSource);
+    });
+    wrap.appendChild(purgeBtn);
+    return wrap;
   }
 
   /* ---------- Export ---------- */
@@ -1434,6 +1494,8 @@
     lastRows = rows; lastSource = sourceLabel;
     const totalOutstanding = rows.reduce((s, r) => s + r.balance, 0);
     const groups = groupByCustomer(rows);
+    const pendingGroups = groups.filter((g) => g.totalBalance > 0);
+    const paidGroups = groups.filter((g) => g.totalBalance <= 0);
     const dash = $("#dashboard"); Dom.clear(dash);
     if (sourceLabel) dash.appendChild(Dom.el("div", { class: "source-badge", html: `<span class="badge badge-primary">${sourceLabel}</span>` }));
     dash.appendChild(renderGuide());
@@ -1442,6 +1504,9 @@
     dash.appendChild(renderDailySummary(rows, groups));
     dash.appendChild(renderTodayCallList(groups));
     dash.appendChild(renderCustomerTable(groups));
+    const paidTable = renderPaidTable(paidGroups);
+    if (paidTable) dash.appendChild(paidTable);
+    dash.appendChild(renderPurgeBtn());
     const charts = Dom.el("div", { class: "grid-2" });
     charts.appendChild(renderAgingChart(rows));
     charts.appendChild(renderBarChart(rows));
