@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Skylimit Telecalling — Dashboards</title>
-  <meta name="description" content="Skylimit Telecalling dashboard hub — Quotation tracking and Accounts Receivable." />
+  <meta name="description" content="Skylimit Telecalling dashboard hub — Quotation tracking, Accounts Receivable, and Outward management for telecallers." />
+  <meta name="keywords" content="Skylimit, telecalling, dashboard, accounts receivable, quotations, outstanding, collections" />
+  <meta property="og:title" content="Skylimit Telecalling — Dashboards" />
+  <meta property="og:description" content="Sales and collections dashboards for Skylimit Telecalling — Quotation tracking, Accounts Receivable, and Outward management." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/png" href="https://inakm.github.io/outward-dashboard/assets/images/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -20,6 +25,7 @@
       <a class="nav-link active" href="index.html">Home</a>
       <a class="nav-link" href="quotations.html">Quotations</a>
       <a class="nav-link" href="receivables.html">Receivables</a>
+      <a class="nav-link" href="https://inakm.github.io/outward-dashboard/">Outward Dashboard</a>
     </div>
   </nav>
 
@@ -54,5 +60,22 @@
       </a>
     </section>
   </main>
+
+  <footer class="site-footer">
+    Dashboard developed &amp; maintained by <a href="https://inakm.github.io" target="_blank" rel="noopener">AKM</a> &amp; <a href="https://f9xr.github.io" target="_blank" rel="noopener">F9XR Team</a>
+  </footer>
+
+  <button id="backToTop" class="back-to-top" aria-label="Back to top">↑</button>
+
+  <script>
+    (function() {
+      var btn = document.getElementById('backToTop');
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 300) btn.classList.add('visible');
+        else btn.classList.remove('visible');
+      });
+      btn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    })();
+  </script>
 </body>
 </html>

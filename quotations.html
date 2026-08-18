@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quotations — Skylimit Telecalling</title>
-  <meta name="description" content="Quotation pipeline dashboard for Skylimit Telecalling." />
+  <meta name="description" content="Quotation pipeline dashboard for Skylimit Telecalling — track volume, value, and conversion." />
+  <meta name="keywords" content="Skylimit, telecalling, quotations, pipeline, sales" />
+  <meta property="og:title" content="Quotations — Skylimit Telecalling" />
+  <meta property="og:description" content="Quotation pipeline dashboard — track volume, value, and conversion across all sent quotations." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/png" href="https://inakm.github.io/outward-dashboard/assets/images/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -20,6 +25,7 @@
       <a class="nav-link" href="index.html">Home</a>
       <a class="nav-link active" href="quotations.html">Quotations</a>
       <a class="nav-link" href="receivables.html">Receivables</a>
+      <a class="nav-link" href="https://inakm.github.io/outward-dashboard/">Outward Dashboard</a>
     </div>
   </nav>
 
@@ -44,8 +50,24 @@
     <div id="dashboard"></div>
   </main>
 
+  <footer class="site-footer">
+    Dashboard developed &amp; maintained by <a href="https://inakm.github.io" target="_blank" rel="noopener">AKM</a> &amp; <a href="https://f9xr.github.io" target="_blank" rel="noopener">F9XR Team</a>
+  </footer>
+
   <div class="chart-tooltip"></div>
 
+  <button id="backToTop" class="back-to-top" aria-label="Back to top">↑</button>
+
+  <script>
+    (function() {
+      var btn = document.getElementById('backToTop');
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 300) btn.classList.add('visible');
+        else btn.classList.remove('visible');
+      });
+      btn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    })();
+  </script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/common.js"></script>
   <script src="assets/js/quotations.js"></script>

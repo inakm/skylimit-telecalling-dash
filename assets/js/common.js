@@ -119,10 +119,20 @@ const Format = (() => {
         gviz[6] ? parseInt(gviz[6], 10) : 0
       );
     }
-    const parts = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);
-    if (parts) {
-      const year = parts[3].length === 2 ? 2000 + parseInt(parts[3], 10) : parseInt(parts[3], 10);
-      return new Date(year, parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+    if (isoMatch) {
+      return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+    }
+    const slashMatch = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/.exec(s);
+    if (slashMatch) {
+      const a = parseInt(slashMatch[1], 10);
+      const b = parseInt(slashMatch[2], 10);
+      const year = slashMatch[3].length === 2 ? 2000 + parseInt(slashMatch[3], 10) : parseInt(slashMatch[3], 10);
+      let month, day;
+      if (a > 12) { day = a; month = b; }
+      else if (b > 12) { month = a; day = b; }
+      else { month = a; day = b; }
+      return new Date(year, month - 1, day);
     }
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
@@ -132,7 +142,7 @@ const Format = (() => {
     if (!d) return "—";
     if (typeof d === "string") d = parseDate(d);
     if (!d) return "—";
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
   function relativeDays(date) {

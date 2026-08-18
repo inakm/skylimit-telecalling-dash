@@ -42,6 +42,9 @@
   --shadow-2: 0 4px 12px rgba(16, 17, 18, 0.08);
   --shadow-3: 0 12px 32px rgba(16, 17, 18, 0.12);
 
+  /* Surfaces (alias for missing --surface) */
+  --surface: #ffffff;
+
   /* Radii */
   --r-xs: 4px;
   --r-sm: 6px;
@@ -50,6 +53,8 @@
   --r-xl: 16px;
   --r-xxl: 24px;
   --r-pill: 9999px;
+  --radius: 8px;
+  --radius-lg: 12px;
 
   /* Spacing */
   --sp-xxs: 4px;
@@ -897,7 +902,7 @@ table.data-table {
 
 .bill-detail-header {
   display: grid;
-  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px;
+  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px 1fr;
   gap: var(--sp-xs);
   padding: var(--sp-xxs) 0;
   border-bottom: 1px solid var(--hairline);
@@ -906,7 +911,7 @@ table.data-table {
 
 .bill-detail-row {
   display: grid;
-  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px;
+  grid-template-columns: 140px 100px 100px 1fr 1fr 1fr 120px 100px 1fr;
   gap: var(--sp-xs);
   padding: var(--sp-xxs) 0;
   border-bottom: 1px solid var(--surface-2);
@@ -1382,92 +1387,61 @@ table.data-table {
   background: var(--semantic-success);
 }
 
-.today-call-item {
+.today-call-table-wrap {
+  border: none;
+  border-radius: 0;
+  margin: 0 var(--sp-lg) var(--sp-md);
+}
+
+.today-call-table {
+  width: 100%;
+}
+
+.today-call-table .today-call-rank-cell {
+  width: 40px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink-subtle);
+}
+
+.today-call-table .urgency-critical .today-call-rank-cell {
+  color: var(--semantic-danger);
+}
+
+.today-call-table .urgency-high .today-call-rank-cell {
+  color: var(--semantic-warning);
+}
+
+.today-call-table .urgency-medium .today-call-rank-cell {
+  color: var(--primary);
+}
+
+.today-call-table .today-call-actions-cell {
+  display: flex;
+  gap: var(--sp-xxs);
+  white-space: nowrap;
+}
+
+.today-call-table .status-select {
+  font-size: 12px;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.today-call-table .today-call-item {
   display: flex;
   align-items: center;
   gap: var(--sp-md);
   padding: 12px 16px;
-  border-radius: var(--radius);
+  border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--hairline);
   transition: all 0.15s ease;
 }
 
-.today-call-item:hover {
+.today-call-table .today-call-item:hover {
   background: var(--surface-2);
   border-color: var(--primary);
-}
-
-.today-call-item.urgency-critical {
-  border-left: 3px solid var(--semantic-danger);
-}
-
-.today-call-item.urgency-high {
-  border-left: 3px solid var(--semantic-warning);
-}
-
-.today-call-item.urgency-medium {
-  border-left: 3px solid var(--primary);
-}
-
-.today-call-rank {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--surface-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  color: var(--ink-subtle);
-}
-
-.urgency-critical .today-call-rank {
-  background: var(--semantic-danger);
-  color: #fff;
-}
-
-.urgency-high .today-call-rank {
-  background: var(--semantic-warning);
-  color: #fff;
-}
-
-.today-call-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.today-call-name {
-  font-weight: 600;
-  font-size: var(--text-body);
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.today-call-meta {
-  font-size: 12px;
-  color: var(--ink-subtle);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.today-call-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-xs);
-  flex-shrink: 0;
-}
-
-.today-call-select {
-  flex-shrink: 0;
 }
 
 /* ---------- Call & WhatsApp Buttons ---------- */
@@ -1829,7 +1803,7 @@ table.data-table {
   color: var(--ink-subtle);
 }
 
-/* ---------- Notes ---------- */
+/* ---------- Remarks ---------- */
 
 .note-input-wrap {
   display: flex;
@@ -1945,24 +1919,111 @@ table.data-table {
   color: var(--ink);
 }
 
+/* ---------- Back to Top ---------- */
+
+.back-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.15s ease;
+  z-index: 90;
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-to-top:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-3);
+}
+
+.back-to-top:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Calling Status KPIs ---------- */
+
+.calling-status-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.calling-status-card .stat-label {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.calling-status-card .stat-label svg {
+  width: 12px;
+  height: 12px;
+}
+
+.calling-status-card .stat-value {
+  font-size: var(--text-display-md);
+}
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--sp-xl) var(--sp-xl) var(--sp-lg);
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--ink-subtle);
+}
+
+.site-footer a {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.site-footer a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1024px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .calling-status-grid { grid-template-columns: repeat(4, 1fr); }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
   .bill-detail-header, .bill-detail-row {
-    grid-template-columns: 120px 80px 80px 1fr 1fr 1fr 100px 80px;
+    grid-template-columns: 120px 80px 80px 1fr 1fr 1fr 100px 80px 1fr;
   }
   .aging-summary-row { grid-template-columns: repeat(2, 1fr); }
   .guide-steps { grid-template-columns: repeat(2, 1fr); }
   .today-call-item { flex-wrap: wrap; }
   .today-call-actions { width: 100%; justify-content: flex-start; }
+  .today-call-table-wrap { margin: 0 var(--sp-md) var(--sp-md); }
   .daily-summary-grid { grid-template-columns: repeat(3, 1fr); }
   .detail-content { grid-template-columns: 1fr; }
   .detail-panel { border-left: none; border-top: 1px solid var(--hairline); max-height: none; }
 }
 
 @media (max-width: 768px) {
+  .calling-status-grid { grid-template-columns: repeat(2, 1fr); }
   .top-nav { padding: 0 var(--sp-md); }
   .nav-meta .nav-extra { display: none; }
   .page { padding: var(--sp-lg) var(--sp-md) var(--sp-xxl); }
@@ -1989,6 +2050,8 @@ table.data-table {
   .today-call-card .card-header { flex-direction: column; align-items: flex-start; }
   .today-call-item { flex-direction: column; align-items: flex-start; }
   .today-call-actions { flex-wrap: wrap; }
+  .today-call-table-wrap { overflow-x: auto; }
+  .today-call-table { font-size: var(--text-caption); }
   .detail-actions { flex-wrap: wrap; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: var(--sp-xs); }
   .date-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: var(--sp-xs); }

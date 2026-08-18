@@ -32,6 +32,7 @@
     amount: ["amount", "total", "balance", "outstanding", "amount due", "amount outstanding", "invoice amount", "balance due", "net amount", "bill value", "bill amount"],
     paid: ["paid", "paid amount", "payment", "collected", "amount paid"],
     status: ["status", "payment status", "state", "invoice status"],
+    remarks: ["remarks", "remark", "notes", "comment"],
   };
 
   function matchHeader(headers) {
@@ -75,6 +76,7 @@
         issueDate, dueDate, amount, paid: paidN, balance,
         status: (r[cols.status] || "").trim(), daysOverdue,
         bucket: age ? age.bucket.label : null, bucketDays: age ? age.days : null,
+        remarks: cols.remarks ? (r[cols.remarks] || "").trim() : "",
       });
     }
     return rows;
@@ -136,7 +138,7 @@
   function loadCallStatus() { return loadJSON(STORAGE_KEY); }
   function saveCallStatus(s) { saveJSON(STORAGE_KEY, s); }
   function getCallStatus(customer) { return loadCallStatus()[customer] || null; }
-  function resetAllCallStatus() { localStorage.removeItem(STORAGE_KEY); }
+  function resetAllCallStatus() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(HISTORY_KEY); }
 
   /* ---------- History ---------- */
   function loadHistory() { return loadJSON(HISTORY_KEY); }
@@ -260,8 +262,8 @@
   function callStatusBadge(customer) {
     const st = getCallStatus(customer);
     if (!st) return "";
-    const labels = { called: "Called", promised: "Promised", contacted: "Contacted", no_answer: "No answer", wrong_number: "Wrong #", follow_up: "Follow up" };
-    const icons = { called: I.phone, promised: I.handshake, contacted: I.checkCircle, no_answer: I.phoneOff, wrong_number: I.xCircle, follow_up: I.refreshCw };
+    const labels = { called: "Called", promised: "Promised", contacted: "Contacted", no_answer: "No answer", wrong_number: "Wrong #", follow_up: "Follow up", paid: "Paid" };
+    const icons = { called: I.phone, promised: I.handshake, contacted: I.checkCircle, no_answer: I.phoneOff, wrong_number: I.xCircle, follow_up: I.refreshCw, paid: I.checkCircle };
     const label = labels[st.action] || st.action;
     const icon = icons[st.action] || "•";
     const date = new Date(st.date);
@@ -415,45 +417,57 @@
       </div>
     `}));
 
-    const list = Dom.el("div", { class: "today-call-list" });
     const toShow = notCalled.slice(0, 8);
     if (!toShow.length) {
+      const list = Dom.el("div", { class: "today-call-list" });
       list.appendChild(Dom.el("div", { class: "today-call-empty", html: `<div class="guide-step-num">${I.checkCircle}</div><span>All customers contacted today! Great work.</span>` }));
+      wrap.appendChild(list);
     } else {
+      const tWrap = Dom.el("div", { class: "table-wrap today-call-table-wrap" });
+      const table = Dom.el("table", { class: "data-table today-call-table" });
+      const thead = Dom.el("thead");
+      const hr = Dom.el("tr");
+      ["#", "Customer Name", "Amount", "Status", "Actions"].forEach((h) => {
+        const th = Dom.el("th", { text: h });
+        if (h === "Amount") th.classList.add("num");
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      const tbody = Dom.el("tbody");
       toShow.forEach((g, i) => {
-        const item = Dom.el("div", { class: `today-call-item urgency-${g.priority.urgency}` });
+        const tr = Dom.el("tr", { class: `urgency-${g.priority.urgency}` });
         const links = phoneLink(g.phone);
-        const hist = getHistory(g.customer);
-        const overduePromises = hist.filter((h) => h.action === "promised" && h.promisedDate && new Date(h.promisedDate) < new Date());
 
-        const rankEl = Dom.el("div", { class: "today-call-rank", text: `${i + 1}` });
-        const info = Dom.el("div", { class: "today-call-info" });
-        info.appendChild(Dom.el("div", { class: "today-call-name", text: g.customer }));
-        const metaParts = [];
-        if (g.phone) metaParts.push(g.phone);
-        metaParts.push(Format.moneyWhole(g.totalBalance));
-        if (g.maxDaysOverdue > 0) metaParts.push(`${g.maxDaysOverdue}d overdue`);
-        metaParts.push(`${g.bills.length} bill${g.bills.length > 1 ? "s" : ""}`);
-        if (overduePromises.length) metaParts.push(`${overduePromises.length} broken promise${overduePromises.length > 1 ? "s" : ""}`);
-        info.appendChild(Dom.el("div", { class: "today-call-meta", text: metaParts.join(" · ") }));
+        tr.appendChild(Dom.el("td", { class: "today-call-rank-cell", text: `${i + 1}` }));
 
-        const actions = Dom.el("div", { class: "today-call-actions" });
-        if (links) {
-          actions.appendChild(Dom.el("a", { class: "btn btn-call", href: links.call, html: `${I.phone} Call` }));
-          actions.appendChild(Dom.el("a", { class: "btn btn-whatsapp", href: links.whatsapp, target: "_blank", html: `${I.whatsapp} WhatsApp` }));
-        }
+        const nameTd = Dom.el("td", { class: "cell-title" });
+        nameTd.appendChild(Dom.el("span", { text: g.customer }));
+        if (g.phone) nameTd.appendChild(Dom.el("span", { class: "cell-phone", html: `&nbsp;· ${g.phone}` }));
+        tr.appendChild(nameTd);
 
-        const selectWrap = Dom.el("div", { class: "today-call-select" });
+        tr.appendChild(Dom.el("td", { text: Format.moneyWhole(g.totalBalance), class: "num strong" }));
+
+        const statusTd = Dom.el("td");
         const select = buildStatusSelect(g.customer);
         if (getCallStatus(g.customer)) select.value = getCallStatus(g.customer).action;
-        selectWrap.appendChild(select);
-        actions.appendChild(selectWrap);
+        statusTd.appendChild(select);
+        tr.appendChild(statusTd);
 
-        item.appendChild(rankEl); item.appendChild(info); item.appendChild(actions);
-        list.appendChild(item);
+        const actionsTd = Dom.el("td", { class: "today-call-actions-cell" });
+        if (links) {
+          actionsTd.appendChild(Dom.el("a", { class: "btn btn-call btn-sm", href: links.call, html: `${I.phone} Call` }));
+          actionsTd.appendChild(Dom.el("a", { class: "btn btn-whatsapp btn-sm", href: links.whatsapp, target: "_blank", html: `${I.whatsapp} WhatsApp` }));
+        }
+        tr.appendChild(actionsTd);
+        tbody.appendChild(tr);
       });
+      table.appendChild(tbody);
+      tWrap.appendChild(table);
+      wrap.appendChild(tWrap);
     }
-    wrap.appendChild(list);
+
     if (called.length > 0) {
       const resetBtn = Dom.el("button", { class: "btn btn-sm btn-secondary", text: "Reset all call status" });
       resetBtn.addEventListener("click", () => { resetAllCallStatus(); if (lastRows) renderDashboard(lastRows, lastSource); });
@@ -473,6 +487,7 @@
       { value: "no_answer", label: "No answer" },
       { value: "wrong_number", label: "Wrong number" },
       { value: "follow_up", label: "Follow up needed" },
+      { value: "paid", label: "Paid" },
     ].forEach((o) => { select.appendChild(Dom.el("option", { value: o.value, text: o.label })); });
     const st = getCallStatus(customer);
     if (st) select.value = st.action;
@@ -659,13 +674,13 @@
       panel.appendChild(tlSection);
     }
 
-    /* --- Notes --- */
+    /* --- Remark --- */
     const notesSection = Dom.el("div", { class: "detail-section" });
-    notesSection.appendChild(Dom.el("div", { class: "detail-section-title", text: `Notes${notes.length ? ` (${notes.length})` : ""}` }));
+    notesSection.appendChild(Dom.el("div", { class: "detail-section-title", text: `Remark${notes.length ? ` (${notes.length})` : ""}` }));
     const noteInput = Dom.el("div", { class: "note-input-wrap" });
-    const noteText = Dom.el("textarea", { class: "input note-textarea", placeholder: "Add a note...", rows: "2" });
+    const noteText = Dom.el("textarea", { class: "input note-textarea", placeholder: "Add a remark...", rows: "2" });
     noteInput.appendChild(noteText);
-    const noteSaveBtn = Dom.el("button", { class: "btn btn-sm btn-primary", text: "Add Note" });
+    const noteSaveBtn = Dom.el("button", { class: "btn btn-sm btn-primary", text: "Add Remark" });
     noteSaveBtn.addEventListener("click", () => {
       const txt = noteText.value.trim();
       if (!txt) return;
@@ -769,7 +784,12 @@
     customRow.appendChild(Dom.el("span", { class: "date-custom-label", text: "To" }));
     customRow.appendChild(toInput);
     const applyCustom = Dom.el("button", { class: "btn btn-sm btn-primary", text: "Apply" });
-    applyCustom.addEventListener("click", () => { activeDateRange = { from: fromInput.value ? new Date(fromInput.value + "T00:00:00") : null, to: toInput.value ? new Date(toInput.value + "T23:59:59") : null }; applyFilters(); });
+    applyCustom.addEventListener("click", () => {
+      const fromDate = fromInput.value ? new Date(fromInput.value + "T00:00:00") : null;
+      const toDate = toInput.value ? new Date(toInput.value + "T23:59:59") : null;
+      activeDateRange = { from: fromDate, to: toDate };
+      applyFilters();
+    });
     customRow.appendChild(applyCustom);
     const clearCustom = Dom.el("button", { class: "btn btn-sm btn-secondary", text: "Clear" });
     clearCustom.addEventListener("click", () => { activeDateRange = null; fromInput.value = ""; toInput.value = ""; dateChips.querySelectorAll(".date-chip").forEach((c) => c.classList.remove("active")); applyFilters(); });
@@ -870,6 +890,26 @@
     const exportBtn = Dom.el("button", { class: "btn btn-sm btn-secondary export-btn", html: `${I.download} Full Report` });
     exportBtn.addEventListener("click", () => exportFilteredCSV(sorted));
     toolbar.appendChild(exportBtn);
+
+    /* --- Import --- */
+    const importInput = Dom.el("input", { type: "file", accept: ".csv,.txt", hidden: "" });
+    const importBtn = Dom.el("button", { class: "btn btn-sm btn-secondary", html: `${I.fileDown} Import Report` });
+    importBtn.addEventListener("click", () => importInput.click());
+    importInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const count = importReportCSV(ev.target.result);
+          alert(`Imported ${count} entries (call status, history, notes).`);
+          if (lastRows) renderDashboard(lastRows, lastSource);
+        } catch (err) { alert("Import failed: " + err.message); }
+      };
+      reader.readAsText(file);
+      importInput.value = "";
+    });
+    toolbar.appendChild(importBtn);
 
     wrap.appendChild(toolbar);
 
@@ -1014,7 +1054,7 @@
     /* Bill sub-table */
     const subTable = Dom.el("div", { class: "bill-detail-wrap" });
     const subHead = Dom.el("div", { class: "bill-detail-header" });
-    ["Bill No", "Bill date", "Due date", "Bill value", "Paid", "Balance", "Overdue", "Status"].forEach((h) => {
+    ["Bill No", "Bill date", "Due date", "Bill value", "Paid", "Balance", "Overdue", "Status", "Remarks"].forEach((h) => {
       subHead.appendChild(Dom.el("div", { class: `bill-detail-cell ${["Bill value", "Paid", "Balance"].includes(h) ? "num" : ""}`, text: h }));
     });
     subTable.appendChild(subHead);
@@ -1029,6 +1069,7 @@
       r.appendChild(Dom.el("div", { class: "bill-detail-cell num strong", text: Format.money(b.balance) }));
       r.appendChild(Dom.el("div", { class: "bill-detail-cell", html: overdueBadge(b.daysOverdue) }));
       r.appendChild(Dom.el("div", { class: "bill-detail-cell", html: statusBadge(b.status) }));
+      r.appendChild(Dom.el("div", { class: "bill-detail-cell", text: b.remarks || "—" }));
       subTable.appendChild(r);
     });
     detailContent.appendChild(subTable);
@@ -1081,7 +1122,7 @@
       const lastPromise = promises.length ? promises[0] : null;
       const followUps = hist.filter((h) => h.action === "follow_up");
       const lastFollowUp = followUps.length ? followUps[0] : null;
-      const notesText = notes.map((n) => `${n.text} (${new Date(n.date).toLocaleString("en-IN")})`).join(" | ");
+      const notesText = notes.map((n) => `${n.text} (${n.date})`).join(" | ");
 
       return [
         i + 1,
@@ -1094,7 +1135,7 @@
         p.urgency,
         st ? st.action : "not_called",
         lastAction ? lastAction.action : "",
-        lastAction ? new Date(lastAction.date).toLocaleString("en-IN") : "",
+        lastAction ? lastAction.date : "",
         lastPromise ? (lastPromise.promisedAmount || 0).toFixed(2) : "",
         lastPromise ? lastPromise.promisedDate || "" : "",
         lastFollowUp ? lastFollowUp.followUpDate || "" : "",
@@ -1103,7 +1144,7 @@
       ].join(",");
     });
 
-    /* --- Sheet 2: Full Activity Log (all notes, all history) --- */
+    /* --- Sheet 2: Full Activity Log (all calls, promises, follow-ups, notes) --- */
     const header2 = [
       "Customer", "Phone", "Activity Type", "Action", "Amount", "Date",
       "Promised Amount", "Promised Date", "Follow-Up Date", "Note", "Timestamp",
@@ -1124,7 +1165,7 @@
           h.promisedDate || "",
           h.followUpDate || "",
           csvEscape(h.promiseNote || h.followUpNote || ""),
-          new Date(h.date).toLocaleString("en-IN"),
+          h.date || "",
         ].join(","));
       });
 
@@ -1141,15 +1182,15 @@
           "",
           "",
           csvEscape(n.text),
-          new Date(n.date).toLocaleString("en-IN"),
+          n.date || "",
         ].join(","));
       });
     });
 
-    /* --- Sheet 3: Bill Details --- */
+    /* --- Sheet 3: Bill Details (with Excel remarks) --- */
     const header3 = [
       "Customer", "Phone", "Bill No", "Bill Date", "Due Date", "Amount",
-      "Paid", "Balance", "Days Overdue", "Aging Bucket", "Status", "Call Status", "Notes",
+      "Paid", "Balance", "Days Overdue", "Aging Bucket", "Status", "Call Status", "Bill Remarks", "Notes",
     ].join(",");
 
     const rows3 = [];
@@ -1161,8 +1202,8 @@
           csvEscape(g.customer),
           csvEscape(g.phone || ""),
           csvEscape(b.reference),
-          b.issueDate ? Format.dateShort(b.issueDate) : "",
-          b.dueDate ? Format.dateShort(b.dueDate) : "",
+          b.issueDate ? b.issueDate.toISOString().slice(0, 10) : "",
+          b.dueDate ? b.dueDate.toISOString().slice(0, 10) : "",
           b.amount.toFixed(2),
           b.paid.toFixed(2),
           b.balance.toFixed(2),
@@ -1170,6 +1211,7 @@
           b.bucket || "",
           b.status || "",
           st ? st.action : "",
+          csvEscape(b.remarks || ""),
           csvEscape(notes),
         ].join(","));
       });
@@ -1193,6 +1235,75 @@
     a.download = `receivables-full-report-${dateStr}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function importReportCSV(text) {
+    const sections = text.split(/^--- .+ ---$/m).map((s) => s.trim()).filter(Boolean);
+    if (sections.length < 2) throw new Error("Invalid report format. Expected multiple sections.");
+    const activitySection = sections[1];
+    const lines = activitySection.split("\n").filter((l) => l.trim());
+    if (lines.length < 2) throw new Error("Activity log section is empty.");
+    const headers = parseCSVLine(lines[0]);
+    const status = {};
+    const hist = {};
+    const notes = {};
+    let imported = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i]);
+      if (cells.length < 6) continue;
+      const customer = cells[0];
+      if (!customer) continue;
+      const activityType = cells[2];
+      const action = cells[3];
+      const timestamp = cells[10] || "";
+      if (activityType === "Call Status" && action) {
+        if (!status[customer] || (timestamp && new Date(timestamp) > new Date(status[customer].date || 0))) {
+          status[customer] = {
+            action,
+            date: timestamp,
+            ...(cells[6] ? { promisedAmount: parseFloat(cells[6]) || 0 } : {}),
+            ...(cells[7] ? { promisedDate: cells[7] } : {}),
+            ...(cells[8] ? { followUpDate: cells[8] } : {}),
+            ...(cells[9] && action === "promised" ? { promiseNote: cells[9] } : {}),
+            ...(cells[9] && action === "follow_up" ? { followUpNote: cells[9] } : {}),
+          };
+        }
+        if (!hist[customer]) hist[customer] = [];
+        const entry = { action, date: timestamp };
+        if (cells[6]) entry.promisedAmount = parseFloat(cells[6]) || 0;
+        if (cells[7]) entry.promisedDate = cells[7];
+        if (cells[8]) entry.followUpDate = cells[8];
+        if (cells[9]) { if (action === "promised") entry.promiseNote = cells[9]; else entry.followUpNote = cells[9]; }
+        hist[customer].push(entry);
+        imported++;
+      } else if (activityType === "Note" && cells[9]) {
+        if (!notes[customer]) notes[customer] = [];
+        notes[customer].push({ text: cells[9], date: timestamp });
+        imported++;
+      }
+    }
+    saveCallStatus(status);
+    saveJSON(HISTORY_KEY, hist);
+    saveJSON(NOTES_KEY, notes);
+    return imported;
+  }
+
+  function parseCSVLine(line) {
+    const cells = []; let i = 0;
+    while (i < line.length) {
+      if (line[i] === '"') {
+        let j = i + 1, val = "";
+        while (j < line.length) {
+          if (line[j] === '"') { if (j + 1 < line.length && line[j + 1] === '"') { val += '"'; j += 2; } else { j++; break; } }
+          else { val += line[j]; j++; }
+        }
+        cells.push(val); i = j + 1; if (i < line.length && line[i] === ",") i++;
+      } else {
+        let j = line.indexOf(",", i); if (j === -1) j = line.length;
+        cells.push(line.slice(i, j).trim()); i = j + 1;
+      }
+    }
+    return cells;
   }
 
   /* ---------- Aging Analysis ---------- */
@@ -1327,6 +1438,7 @@
     if (sourceLabel) dash.appendChild(Dom.el("div", { class: "source-badge", html: `<span class="badge badge-primary">${sourceLabel}</span>` }));
     dash.appendChild(renderGuide());
     dash.appendChild(renderKpis(rows, totalOutstanding, groups));
+    dash.appendChild(renderCallingStatusKpis(groups));
     dash.appendChild(renderDailySummary(rows, groups));
     dash.appendChild(renderTodayCallList(groups));
     dash.appendChild(renderCustomerTable(groups));
@@ -1351,6 +1463,55 @@
     grid.appendChild(statCard("Customers pending", `<span class="mono">${customersWithDue}</span>`, { delta: `<span>${rows.length} total bills</span>` }));
     grid.appendChild(statCard("Total overdue", Format.moneyWhole(overdueTotal), { delta: `<span class="down">${pctOverdue.toFixed(1)}% of outstanding</span>` }));
     grid.appendChild(statCard("High risk (60d+)", Format.moneyWhole(days90)));
+    return grid;
+  }
+
+  function renderCallingStatusKpis(groups) {
+    const status = loadCallStatus();
+    const hist = loadHistory();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const allEntries = Object.values(hist).flat();
+    const todayEntries = allEntries.filter((e) => new Date(e.date) >= today);
+
+    const statusCounts = { called: 0, promised: 0, contacted: 0, no_answer: 0, wrong_number: 0, follow_up: 0, paid: 0, not_called: 0 };
+    const statusAmounts = { called: 0, promised: 0, contacted: 0, no_answer: 0, wrong_number: 0, follow_up: 0, paid: 0, not_called: 0 };
+    const pending = groups.filter((g) => g.totalBalance > 0);
+
+    pending.forEach((g) => {
+      const st = status[g.customer];
+      const key = st ? st.action : "not_called";
+      if (statusCounts.hasOwnProperty(key)) {
+        statusCounts[key]++;
+        statusAmounts[key] += g.totalBalance;
+      } else {
+        statusCounts.not_called++;
+        statusAmounts.not_called += g.totalBalance;
+      }
+    });
+
+    const todayPromises = todayEntries.filter((e) => e.action === "promised");
+    const todayPromisedAmt = todayPromises.reduce((s, e) => s + (e.promisedAmount || 0), 0);
+    const overduePromises = allEntries.filter((e) => e.action === "promised" && e.promisedDate && new Date(e.promisedDate) < today);
+    const dueFollowUps = allEntries.filter((e) => e.action === "follow_up" && e.followUpDate && new Date(e.followUpDate) <= today);
+
+    const grid = Dom.el("div", { class: "stat-grid calling-status-grid" });
+    const items = [
+      { label: "Not called yet", value: statusCounts.not_called, amount: statusAmounts.not_called, color: "var(--primary)", icon: I.phone },
+      { label: "Called", value: statusCounts.called, amount: statusAmounts.called, color: "var(--semantic-success)", icon: I.checkCircle },
+      { label: "Contacted", value: statusCounts.contacted, amount: statusAmounts.contacted, color: "#0891b2", icon: I.users },
+      { label: "Promised to pay", value: statusCounts.promised, amount: statusAmounts.promised, color: "var(--semantic-warning)", icon: I.handshake },
+      { label: "Follow-up due", value: dueFollowUps.length, amount: 0, color: "#8b5cf6", icon: I.calendar },
+      { label: "Paid", value: statusCounts.paid, amount: statusAmounts.paid, color: "var(--semantic-success)", icon: I.banknote },
+      { label: "No answer", value: statusCounts.no_answer, amount: statusAmounts.no_answer, color: "#a8abb3", icon: I.phoneOff },
+      { label: "Wrong number", value: statusCounts.wrong_number, amount: statusAmounts.wrong_number, color: "#a8abb3", icon: I.xCircle },
+    ];
+    items.forEach((item) => {
+      grid.appendChild(Dom.el("div", { class: "stat-card calling-status-card", html: `
+        <div class="stat-label" style="color:${item.color}">${item.icon} ${item.label}</div>
+        <div class="stat-value">${item.value}</div>
+        ${item.amount > 0 ? `<div class="stat-delta">${Format.moneyWhole(item.amount)}</div>` : ""}
+      `}));
+    });
     return grid;
   }
 
